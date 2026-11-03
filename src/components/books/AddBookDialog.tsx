@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Loader2, Plus, UploadCloud, X } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
+
 import { Button } from '@/components/ui/Button'
 import { Field } from '@/components/ui/Field'
 import { useI18n } from '@/contexts/I18nContext'
@@ -13,6 +14,30 @@ interface Props {
   open: boolean
   userId: string
   onClose: () => void
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message
+  }
+
+  if (typeof error === 'object' && error !== null) {
+    const e = error as {
+      message?: string
+      details?: string
+      hint?: string
+      code?: string
+    }
+
+    return [
+      e.message,
+      e.details,
+      e.hint,
+      e.code ? `Code: ${e.code}` : '',
+    ].filter(Boolean).join(' | ')
+  }
+
+  return String(error)
 }
 
 export default function AddBookDialog({ open, userId, onClose }: Props) {
@@ -43,9 +68,13 @@ export default function AddBookDialog({ open, userId, onClose }: Props) {
     if (!open) return
 
     setLoadingCategories(true)
+
     listCategories()
       .then(setCategories)
-      .catch(() => toast.error(t('upload.categoryLoadError')))
+      .catch((error) => {
+        console.error('RIWAQ CATEGORY LOAD ERROR:', error)
+        toast.error(t('upload.categoryLoadError'))
+      })
       .finally(() => setLoadingCategories(false))
   }, [open, t, toast])
 
@@ -62,6 +91,7 @@ export default function AddBookDialog({ open, userId, onClose }: Props) {
     setCreateNewCategory(false)
     setFile(null)
     setCover(null)
+
     if (fileRef.current) fileRef.current.value = ''
     if (coverRef.current) coverRef.current.value = ''
   }
@@ -75,6 +105,11 @@ export default function AddBookDialog({ open, userId, onClose }: Props) {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
+    if (!userId) {
+      toast.error('لم يتم التعرف على حساب المستخدم. يرجى تسجيل الدخول مجدداً.')
+      return
+    }
+
     if (!file) {
       toast.error(t('upload.fileRequired'))
       return
@@ -86,21 +121,22 @@ export default function AddBookDialog({ open, userId, onClose }: Props) {
     }
 
     setSaving(true)
+    setStage('uploading')
 
     try {
       let selectedCategory = categoryId || null
 
       if (createNewCategory && newCategory.trim()) {
-        const category = await createCategory(userId, newCategory)
+        const category = await createCategory(userId, newCategory.trim())
         selectedCategory = category.id
       }
 
       await uploadBook(
         {
           userId,
-          title,
-          author,
-          description,
+          title: title.trim(),
+          author: author.trim(),
+          description: description.trim(),
           language,
           publicationDate,
           categoryId: selectedCategory,
@@ -119,8 +155,13 @@ export default function AddBookDialog({ open, userId, onClose }: Props) {
       resetForm()
       onClose()
     } catch (error) {
-      console.error('Book upload failed:', error)
-      toast.error(t('upload.failed'))
+      console.error('RIWAQ BOOK UPLOAD ERROR:', error)
+
+      const message = getErrorMessage(error)
+
+      console.error('RIWAQ ERROR DETAILS:', message)
+
+      toast.error(message || t('upload.failed'))
     } finally {
       setSaving(false)
     }
@@ -145,7 +186,9 @@ export default function AddBookDialog({ open, userId, onClose }: Props) {
             <h2 id="add-book-title" className="text-xl font-bold">
               {t('upload.title')}
             </h2>
-            <p className="mt-1 text-sm text-muted">{t('upload.subtitle')}</p>
+            <p className="mt-1 text-sm text-muted">
+              {t('upload.subtitle')}
+            </p>
           </div>
 
           <button
@@ -178,7 +221,10 @@ export default function AddBookDialog({ open, userId, onClose }: Props) {
           />
 
           <div className="space-y-1.5">
-            <label className="block text-sm font-medium">{t('upload.description')}</label>
+            <label className="block text-sm font-medium">
+              {t('upload.description')}
+            </label>
+
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
@@ -190,7 +236,10 @@ export default function AddBookDialog({ open, userId, onClose }: Props) {
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <label className="block text-sm font-medium">{t('upload.language')}</label>
+              <label className="block text-sm font-medium">
+                {t('upload.language')}
+              </label>
+
               <select
                 value={language}
                 onChange={(e) => setLanguage(e.target.value)}
@@ -212,7 +261,9 @@ export default function AddBookDialog({ open, userId, onClose }: Props) {
           </div>
 
           <div className="space-y-2">
-            <label className="block text-sm font-medium">{t('upload.category')}</label>
+            <label className="block text-sm font-medium">
+              {t('upload.category')}
+            </label>
 
             {!createNewCategory ? (
               <div className="flex gap-2">
@@ -223,6 +274,7 @@ export default function AddBookDialog({ open, userId, onClose }: Props) {
                   className="h-11 min-w-0 flex-1 rounded-xl border border-line bg-surface px-3 text-sm"
                 >
                   <option value="">{t('upload.noCategory')}</option>
+
                   {categories.map((category) => (
                     <option key={category.id} value={category.id}>
                       {category.name}
@@ -249,6 +301,7 @@ export default function AddBookDialog({ open, userId, onClose }: Props) {
                   placeholder={t('upload.categoryName')}
                   className="h-11 min-w-0 flex-1 rounded-xl border border-line bg-surface px-3 text-sm"
                 />
+
                 <Button
                   type="button"
                   variant="outline"
@@ -265,7 +318,10 @@ export default function AddBookDialog({ open, userId, onClose }: Props) {
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <label className="block text-sm font-medium">{t('upload.bookFile')}</label>
+              <label className="block text-sm font-medium">
+                {t('upload.bookFile')}
+              </label>
+
               <input
                 ref={fileRef}
                 type="file"
@@ -273,12 +329,23 @@ export default function AddBookDialog({ open, userId, onClose }: Props) {
                 onChange={(e) => setFile(e.target.files?.[0] ?? null)}
                 className="block w-full text-xs text-muted file:me-3 file:rounded-lg file:border-0 file:bg-primary/10 file:px-3 file:py-2 file:text-primary"
               />
-              <p className="text-xs text-muted">{t('upload.fileHint')}</p>
-              {file && <p className="break-all text-xs text-primary">{file.name}</p>}
+
+              <p className="text-xs text-muted">
+                {t('upload.fileHint')}
+              </p>
+
+              {file && (
+                <p className="break-all text-xs text-primary">
+                  {file.name}
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">
-              <label className="block text-sm font-medium">{t('upload.cover')}</label>
+              <label className="block text-sm font-medium">
+                {t('upload.cover')}
+              </label>
+
               <input
                 ref={coverRef}
                 type="file"
@@ -286,13 +353,26 @@ export default function AddBookDialog({ open, userId, onClose }: Props) {
                 onChange={(e) => setCover(e.target.files?.[0] ?? null)}
                 className="block w-full text-xs text-muted file:me-3 file:rounded-lg file:border-0 file:bg-primary/10 file:px-3 file:py-2 file:text-primary"
               />
-              <p className="text-xs text-muted">{t('upload.coverHint')}</p>
-              {cover && <p className="break-all text-xs text-primary">{cover.name}</p>}
+
+              <p className="text-xs text-muted">
+                {t('upload.coverHint')}
+              </p>
+
+              {cover && (
+                <p className="break-all text-xs text-primary">
+                  {cover.name}
+                </p>
+              )}
             </div>
           </div>
 
           <div className="flex flex-wrap justify-end gap-3 border-t border-line pt-5">
-            <Button type="button" variant="outline" onClick={close} disabled={saving}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={close}
+              disabled={saving}
+            >
               {t('common.cancel')}
             </Button>
 
@@ -315,4 +395,3 @@ export default function AddBookDialog({ open, userId, onClose }: Props) {
     </div>
   )
 }
-
