@@ -1,0 +1,1 @@
+const e=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;function t(r){return r.trim()?e.test(r.trim())?null:"errors.invalidEmail":"errors.required"}function i(r){return r?r.length>=8?null:"errors.passwordShort":"errors.required"}function n(r){return r.trim()?null:"errors.required"}export{n as a,i as b,t as v};

@@ -1,0 +1,67 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: 246 247 249;       /* #F6F7F9 */
+  --surface: 255 255 255;  /* #FFFFFF */
+  --ink: 32 41 56;         /* #202938 */
+  --muted: 100 112 132;
+  --line: 226 230 237;
+}
+
+.dark {
+  --bg: 14 22 38;
+  --surface: 23 34 55;
+  --ink: 232 236 243;
+  --muted: 150 162 182;
+  --line: 44 58 84;
+}
+
+html {
+  color-scheme: light;
+}
+html.dark {
+  color-scheme: dark;
+}
+
+body {
+  @apply bg-bg text-ink antialiased;
+  margin: 0;
+  font-family: 'Inter', 'Cairo', system-ui, sans-serif;
+}
+
+html[lang='ar'] body {
+  font-family: 'Cairo', 'Tajawal', system-ui, sans-serif;
+}
+
+:focus-visible {
+  outline: 2px solid #D6A85F;
+  outline-offset: 2px;
+}
+
+/* safe-area padding for installed PWA / Capacitor */
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+@layer components {
+  .card {
+    @apply rounded-2xl border border-line bg-surface shadow-soft;
+  }
+}
+
+@keyframes shimmer {
+  0% { opacity: 1; }
+  50% { opacity: 0.55; }
+  100% { opacity: 1; }
+}
+.skeleton {
+  @apply rounded-xl bg-line;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton { animation: none; }
+  * { transition: none !important; }
+}

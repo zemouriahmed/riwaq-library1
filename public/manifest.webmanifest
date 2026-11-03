@@ -1,0 +1,14 @@
+{
+  "name": "Smart Library",
+  "short_name": "Smart Library",
+  "description": "Personal cloud library / مكتبتك الشخصية في السحابة",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F6F7F9",
+  "theme_color": "#172B4D",
+  "icons": [
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}
