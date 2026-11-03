@@ -103,16 +103,27 @@ export async function createCategory(userId: string, name: string): Promise<Cate
  * Uploads the original file and optional cover, then creates the database row.
  * Uploaded objects are removed if a later step fails.
  */
+
 export async function uploadBook(
   input: NewBookInput,
   onStage?: (stage: 'uploading' | 'saving') => void,
 ): Promise<void> {
   const {
-    userId, title, author, description, language,
-    publicationDate, categoryId, file, cover,
+    userId,
+    title,
+    author,
+    description,
+    language,
+    publicationDate,
+    categoryId,
+    file,
+    cover,
   } = input
 
+  let currentStage = 'التحقق من بيانات الكتاب'
+
   const extension = file.name.split('.').pop()?.toLowerCase()
+
   if (extension !== 'pdf' && extension !== 'epub') {
     throw new Error('INVALID_BOOK_FORMAT')
   }
@@ -135,19 +146,59 @@ export async function uploadBook(
   const uploadedPaths: string[] = []
 
   try {
+    // 1. التحقق من جلسة المستخدم
+    currentStage = 'التحقق من جلسة المستخدم'
+
+    const {
+      data: authData,
+      error: authError,
+    } = await supabase.auth.getUser()
+
+    if (authError) {
+      throw authError
+    }
+
+    if (!authData.user) {
+      throw new Error('لا توجد جلسة مستخدم نشطة. يرجى تسجيل الدخول مجدداً.')
+    }
+
+    if (authData.user.id !== userId) {
+      throw new Error('معرّف المستخدم لا يطابق جلسة تسجيل الدخول.')
+    }
+
+    // 2. رفع ملف الكتاب
+    currentStage = 'رفع ملف الكتاب إلى Storage'
     onStage?.('uploading')
+
+    console.log('[RIWAQ UPLOAD] Starting original file upload', {
+      bucket: BOOKS_BUCKET,
+      path: filePath,
+      size: file.size,
+      format,
+    })
 
     const { error: fileError } = await supabase.storage
       .from(BOOKS_BUCKET)
       .upload(filePath, file, {
-        contentType: format === 'pdf' ? 'application/pdf' : 'application/epub+zip',
+        contentType:
+          format === 'pdf'
+            ? 'application/pdf'
+            : 'application/epub+zip',
         upsert: false,
       })
 
-    if (fileError) throw fileError
+    if (fileError) {
+      throw fileError
+    }
+
     uploadedPaths.push(filePath)
 
+    console.log('[RIWAQ UPLOAD] Original file uploaded successfully')
+
+    // 3. رفع صورة الغلاف إن وجدت
     if (cover && coverPath) {
+      currentStage = 'رفع صورة الغلاف'
+
       const { error: coverError } = await supabase.storage
         .from(BOOKS_BUCKET)
         .upload(coverPath, cover, {
@@ -155,82 +206,74 @@ export async function uploadBook(
           upsert: false,
         })
 
-      if (coverError) throw coverError
+      if (coverError) {
+        throw coverError
+      }
+
       uploadedPaths.push(coverPath)
+
+      console.log('[RIWAQ UPLOAD] Cover uploaded successfully')
     }
 
+    // 4. حفظ بيانات الكتاب في قاعدة البيانات
+    currentStage = 'حفظ بيانات الكتاب في قاعدة البيانات'
     onStage?.('saving')
 
-    const { error: insertError } = await supabase.from('books').insert({
-      id: bookId,
-      user_id: userId,
+    const { error: insertError } = await supabase
+      .from('books')
+      .insert({
+        id: bookId,
+        user_id: userId,
+        title: title.trim(),
+        author: author.trim() || null,
+        description: description.trim() || null,
+        language: language || null,
+        publication_date: publicationDate || null,
+        category_id: categoryId,
+        file_path: filePath,
+        file_format: format,
+        file_size: file.size,
+        cover_path: coverPath,
+      })
+
+    if (insertError) {
+      throw insertError
+    }
+
+    console.log('[RIWAQ UPLOAD] Book saved successfully', {
+      bookId,
       title: title.trim(),
-      author: author.trim() || null,
-      description: description.trim() || null,
-      language: language || null,
-      publication_date: publicationDate || null,
-      category_id: categoryId,
-      file_path: filePath,
-      file_format: format,
-      file_size: file.size,
-      cover_path: coverPath,
     })
 
-    if (insertError) throw insertError
   } catch (error) {
+    // تسجيل المرحلة التي حدث فيها الخطأ
+    console.error('[RIWAQ UPLOAD FAILED]', {
+      stage: currentStage,
+      error,
+      message: error instanceof Error ? error.message : String(error),
+      code: (error as { code?: string })?.code,
+      details: (error as { details?: string })?.details,
+      hint: (error as { hint?: string })?.hint,
+    })
+
+    // حذف الملفات التي رُفعت إذا فشلت العملية
     if (uploadedPaths.length > 0) {
-      await supabase.storage.from(BOOKS_BUCKET).remove(uploadedPaths)
+      const { error: cleanupError } = await supabase.storage
+        .from(BOOKS_BUCKET)
+        .remove(uploadedPaths)
+
+      if (cleanupError) {
+        console.error('[RIWAQ CLEANUP FAILED]', cleanupError)
+      }
     }
-    throw error
+
+    const originalMessage =
+      error instanceof Error
+        ? error.message
+        : String(error)
+
+    throw new Error(
+      `فشلت العملية في مرحلة: ${currentStage}. التفاصيل: ${originalMessage}`,
+    )
   }
-}
-
-export async function listContinueReading(limit = 6): Promise<Book[]> {
-  const { data, error } = await supabase
-    .from('books')
-    .select(SELECT)
-    .eq('reading_status', 'reading')
-    .order('last_opened_at', { ascending: false, nullsFirst: false })
-    .limit(limit)
-
-  if (error) throw error
-  return (data ?? []) as Book[]
-}
-
-export async function listRecentlyAdded(limit = 6): Promise<Book[]> {
-  const { data, error } = await supabase
-    .from('books')
-    .select(SELECT)
-    .order('created_at', { ascending: false })
-    .limit(limit)
-
-  if (error) throw error
-  return (data ?? []) as Book[]
-}
-
-export async function listRecentlyOpened(limit = 6): Promise<Book[]> {
-  const { data, error } = await supabase
-    .from('books')
-    .select(SELECT)
-    .not('last_opened_at', 'is', null)
-    .order('last_opened_at', { ascending: false })
-    .limit(limit)
-
-  if (error) throw error
-  return (data ?? []) as Book[]
-}
-
-export async function setFavorite(bookId: string, isFavorite: boolean): Promise<void> {
-  const { error } = await supabase
-    .from('books')
-    .update({ is_favorite: isFavorite })
-    .eq('id', bookId)
-
-  if (error) throw error
-}
-
-export function bookProgress(book: Book): number {
-  const p = book.reading_progress?.[0]?.progress_percent
-  if (typeof p === 'number') return Math.round(p)
-  return book.reading_status === 'completed' ? 100 : 0
 }
