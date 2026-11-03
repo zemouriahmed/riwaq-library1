@@ -1,6 +1,12 @@
 
 import { supabase } from '@/lib/supabase'
-import type { Book, BookSort, BookView, Category, FileFormat } from '@/types'
+import type {
+  Book,
+  BookSort,
+  BookView,
+  Category,
+  FileFormat,
+} from '@/types'
 
 const SELECT = '*, reading_progress(progress_percent)'
 const BOOKS_BUCKET = 'private-books'
@@ -32,37 +38,72 @@ export interface NewBookInput {
   cover?: File | null
 }
 
+// تنظيف نص البحث
 function sanitizeSearch(input: string): string {
   return input.replace(/[%_,()\\]/g, ' ').trim()
 }
 
-export async function listBooks(query: BookQuery = {}): Promise<BookPage> {
-  const { view = 'all', search = '', sort, page = 1, pageSize = 24 } = query
+// جلب الكتب مع البحث والتصفية والترتيب
+export async function listBooks(
+  query: BookQuery = {},
+): Promise<BookPage> {
+  const {
+    view = 'all',
+    search = '',
+    sort,
+    page = 1,
+    pageSize = 24,
+  } = query
 
-  let q = supabase.from('books').select(SELECT, { count: 'exact' })
+  let q = supabase
+    .from('books')
+    .select(SELECT, { count: 'exact' })
 
-  if (view === 'reading') q = q.eq('reading_status', 'reading')
-  if (view === 'finished') q = q.eq('reading_status', 'completed')
-  if (view === 'favorites') q = q.eq('is_favorite', true)
+  if (view === 'reading') {
+    q = q.eq('reading_status', 'reading')
+  }
+
+  if (view === 'finished') {
+    q = q.eq('reading_status', 'completed')
+  }
+
+  if (view === 'favorites') {
+    q = q.eq('is_favorite', true)
+  }
 
   const term = sanitizeSearch(search)
+
   if (term) {
-    q = q.or(`title.ilike.%${term}%,author.ilike.%${term}%,description.ilike.%${term}%`)
+    q = q.or(
+      `title.ilike.%${term}%,author.ilike.%${term}%,description.ilike.%${term}%`,
+    )
   }
 
   switch (sort ?? 'created') {
     case 'title':
       q = q.order('title', { ascending: true })
       break
+
     case 'author':
-      q = q.order('author', { ascending: true, nullsFirst: false })
+      q = q.order('author', {
+        ascending: true,
+        nullsFirst: false,
+      })
       break
+
     case 'opened':
-      q = q.order('last_opened_at', { ascending: false, nullsFirst: false })
+      q = q.order('last_opened_at', {
+        ascending: false,
+        nullsFirst: false,
+      })
       break
+
     case 'progress':
-      q = q.order('reading_status', { ascending: false }).order('updated_at', { ascending: false })
+      q = q
+        .order('reading_status', { ascending: false })
+        .order('updated_at', { ascending: false })
       break
+
     default:
       q = q.order('created_at', { ascending: false })
   }
@@ -71,10 +112,16 @@ export async function listBooks(query: BookQuery = {}): Promise<BookPage> {
   q = q.range(from, from + pageSize - 1)
 
   const { data, error, count } = await q
+
   if (error) throw error
-  return { books: (data ?? []) as Book[], total: count ?? 0 }
+
+  return {
+    books: (data ?? []) as Book[],
+    total: count ?? 0,
+  }
 }
 
+// جلب التصنيفات
 export async function listCategories(): Promise<Category[]> {
   const { data, error } = await supabase
     .from('categories')
@@ -82,28 +129,36 @@ export async function listCategories(): Promise<Category[]> {
     .order('name', { ascending: true })
 
   if (error) throw error
+
   return (data ?? []) as Category[]
 }
 
-export async function createCategory(userId: string, name: string): Promise<Category> {
+// إنشاء تصنيف جديد
+export async function createCategory(
+  userId: string,
+  name: string,
+): Promise<Category> {
   const cleanName = name.trim()
-  if (!cleanName) throw new Error('CATEGORY_NAME_REQUIRED')
+
+  if (!cleanName) {
+    throw new Error('CATEGORY_NAME_REQUIRED')
+  }
 
   const { data, error } = await supabase
     .from('categories')
-    .insert({ user_id: userId, name: cleanName })
+    .insert({
+      user_id: userId,
+      name: cleanName,
+    })
     .select('*')
     .single()
 
   if (error) throw error
+
   return data as Category
 }
 
-/**
- * Uploads the original file and optional cover, then creates the database row.
- * Uploaded objects are removed if a later step fails.
- */
-
+// رفع الكتاب وصورة الغلاف وحفظ بياناته
 export async function uploadBook(
   input: NewBookInput,
   onStage?: (stage: 'uploading' | 'saving') => void,
@@ -122,31 +177,40 @@ export async function uploadBook(
 
   let currentStage = 'التحقق من بيانات الكتاب'
 
+  // التحقق من صيغة الملف
   const extension = file.name.split('.').pop()?.toLowerCase()
 
   if (extension !== 'pdf' && extension !== 'epub') {
     throw new Error('INVALID_BOOK_FORMAT')
   }
 
+  // التحقق من حجم الكتاب
   if (file.size <= 0 || file.size > MAX_BOOK_SIZE) {
     throw new Error('INVALID_BOOK_SIZE')
   }
 
+  // التحقق من صورة الغلاف
   if (cover) {
-    if (cover.type !== 'image/jpeg' || cover.size > MAX_COVER_SIZE) {
+    if (
+      cover.type !== 'image/jpeg' ||
+      cover.size <= 0 ||
+      cover.size > MAX_COVER_SIZE
+    ) {
       throw new Error('INVALID_COVER')
     }
   }
 
   const format = extension as FileFormat
   const bookId = crypto.randomUUID()
+
   const folder = `${userId}/books/${bookId}`
   const filePath = `${folder}/original.${format}`
   const coverPath = cover ? `${folder}/cover.jpg` : null
+
   const uploadedPaths: string[] = []
 
   try {
-    // 1. التحقق من جلسة المستخدم
+    // التحقق من جلسة المستخدم
     currentStage = 'التحقق من جلسة المستخدم'
 
     const {
@@ -159,15 +223,20 @@ export async function uploadBook(
     }
 
     if (!authData.user) {
-      throw new Error('لا توجد جلسة مستخدم نشطة. يرجى تسجيل الدخول مجدداً.')
+      throw new Error(
+        'لا توجد جلسة مستخدم نشطة. يرجى تسجيل الدخول مجدداً.',
+      )
     }
 
     if (authData.user.id !== userId) {
-      throw new Error('معرّف المستخدم لا يطابق جلسة تسجيل الدخول.')
+      throw new Error(
+        'معرّف المستخدم لا يطابق جلسة تسجيل الدخول.',
+      )
     }
 
-    // 2. رفع ملف الكتاب
+    // رفع ملف الكتاب
     currentStage = 'رفع ملف الكتاب إلى Storage'
+
     onStage?.('uploading')
 
     console.log('[RIWAQ UPLOAD] Starting original file upload', {
@@ -193,9 +262,11 @@ export async function uploadBook(
 
     uploadedPaths.push(filePath)
 
-    console.log('[RIWAQ UPLOAD] Original file uploaded successfully')
+    console.log(
+      '[RIWAQ UPLOAD] Original file uploaded successfully',
+    )
 
-    // 3. رفع صورة الغلاف إن وجدت
+    // رفع صورة الغلاف
     if (cover && coverPath) {
       currentStage = 'رفع صورة الغلاف'
 
@@ -212,11 +283,14 @@ export async function uploadBook(
 
       uploadedPaths.push(coverPath)
 
-      console.log('[RIWAQ UPLOAD] Cover uploaded successfully')
+      console.log(
+        '[RIWAQ UPLOAD] Cover uploaded successfully',
+      )
     }
 
-    // 4. حفظ بيانات الكتاب في قاعدة البيانات
+    // حفظ بيانات الكتاب في قاعدة البيانات
     currentStage = 'حفظ بيانات الكتاب في قاعدة البيانات'
+
     onStage?.('saving')
 
     const { error: insertError } = await supabase
@@ -246,24 +320,37 @@ export async function uploadBook(
     })
 
   } catch (error) {
-    // تسجيل المرحلة التي حدث فيها الخطأ
+    // تسجيل تفاصيل الخطأ
     console.error('[RIWAQ UPLOAD FAILED]', {
       stage: currentStage,
       error,
-      message: error instanceof Error ? error.message : String(error),
+      message:
+        error instanceof Error
+          ? error.message
+          : String(error),
       code: (error as { code?: string })?.code,
       details: (error as { details?: string })?.details,
       hint: (error as { hint?: string })?.hint,
     })
 
-    // حذف الملفات التي رُفعت إذا فشلت العملية
+    // حذف الملفات المرفوعة إذا فشلت العملية
     if (uploadedPaths.length > 0) {
-      const { error: cleanupError } = await supabase.storage
-        .from(BOOKS_BUCKET)
-        .remove(uploadedPaths)
+      try {
+        const { error: cleanupError } = await supabase.storage
+          .from(BOOKS_BUCKET)
+          .remove(uploadedPaths)
 
-      if (cleanupError) {
-        console.error('[RIWAQ CLEANUP FAILED]', cleanupError)
+        if (cleanupError) {
+          console.error(
+            '[RIWAQ CLEANUP FAILED]',
+            cleanupError,
+          )
+        }
+      } catch (cleanupError) {
+        console.error(
+          '[RIWAQ CLEANUP FAILED]',
+          cleanupError,
+        )
       }
     }
 
@@ -276,4 +363,80 @@ export async function uploadBook(
       `فشلت العملية في مرحلة: ${currentStage}. التفاصيل: ${originalMessage}`,
     )
   }
+}
+
+// الكتب التي يواصل المستخدم قراءتها
+export async function listContinueReading(
+  limit = 6,
+): Promise<Book[]> {
+  const { data, error } = await supabase
+    .from('books')
+    .select(SELECT)
+    .eq('reading_status', 'reading')
+    .order('last_opened_at', {
+      ascending: false,
+      nullsFirst: false,
+    })
+    .limit(limit)
+
+  if (error) throw error
+
+  return (data ?? []) as Book[]
+}
+
+// أحدث الكتب المضافة
+export async function listRecentlyAdded(
+  limit = 6,
+): Promise<Book[]> {
+  const { data, error } = await supabase
+    .from('books')
+    .select(SELECT)
+    .order('created_at', { ascending: false })
+    .limit(limit)
+
+  if (error) throw error
+
+  return (data ?? []) as Book[]
+}
+
+// الكتب التي فتحها المستخدم مؤخراً
+export async function listRecentlyOpened(
+  limit = 6,
+): Promise<Book[]> {
+  const { data, error } = await supabase
+    .from('books')
+    .select(SELECT)
+    .not('last_opened_at', 'is', null)
+    .order('last_opened_at', { ascending: false })
+    .limit(limit)
+
+  if (error) throw error
+
+  return (data ?? []) as Book[]
+}
+
+// إضافة أو إزالة كتاب من المفضلة
+export async function setFavorite(
+  bookId: string,
+  isFavorite: boolean,
+): Promise<void> {
+  const { error } = await supabase
+    .from('books')
+    .update({
+      is_favorite: isFavorite,
+    })
+    .eq('id', bookId)
+
+  if (error) throw error
+}
+
+// حساب نسبة تقدم القراءة
+export function bookProgress(book: Book): number {
+  const progress = book.reading_progress?.[0]?.progress_percent
+
+  if (typeof progress === 'number') {
+    return Math.round(progress)
+  }
+
+  return book.reading_status === 'completed' ? 100 : 0
 }
