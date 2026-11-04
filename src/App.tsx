@@ -1,3 +1,4 @@
+
 import { lazy } from 'react'
 import { Route, Routes } from 'react-router-dom'
 import { AppLayout } from '@/components/layout/AppLayout'
@@ -9,8 +10,10 @@ const LoginPage = lazy(() => import('@/pages/auth/LoginPage'))
 const RegisterPage = lazy(() => import('@/pages/auth/RegisterPage'))
 const ForgotPasswordPage = lazy(() => import('@/pages/auth/ForgotPasswordPage'))
 const ResetPasswordPage = lazy(() => import('@/pages/auth/ResetPasswordPage'))
+
 const DashboardPage = lazy(() => import('@/pages/dashboard/DashboardPage'))
 const LibraryPage = lazy(() => import('@/pages/library/LibraryPage'))
+const ReaderPage = lazy(() => import('@/pages/reader/ReaderPage'))
 const ShelvesPage = lazy(() => import('@/pages/shelves/ShelvesPage'))
 const SettingsPage = lazy(() => import('@/pages/settings/SettingsPage'))
 const NotFoundPage = lazy(() => import('@/pages/NotFoundPage'))
@@ -26,19 +29,25 @@ export default function App() {
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       </Route>
 
-      {/* The recovery link signs the user in temporarily, so this page is reachable either way. */}
+      {/* Password recovery */}
       <Route path="/reset-password" element={<ResetPasswordPage />} />
 
       <Route element={<ProtectedRoute />}>
         <Route element={<AppLayout />}>
           <Route index element={<DashboardPage />} />
+
           <Route path="library" element={<LibraryPage view="all" />} />
+
+          {/* PDF book reader */}
+          <Route path="books/:bookId/read" element={<ReaderPage />} />
+
           <Route path="shelves" element={<ShelvesPage />} />
           <Route path="recent" element={<LibraryPage view="recent" />} />
           <Route path="reading" element={<LibraryPage view="reading" />} />
           <Route path="finished" element={<LibraryPage view="finished" />} />
           <Route path="favorites" element={<LibraryPage view="favorites" />} />
           <Route path="settings" element={<SettingsPage />} />
+
           <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Route>
