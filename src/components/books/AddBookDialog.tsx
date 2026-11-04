@@ -1,6 +1,6 @@
 
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { Loader2, Plus, UploadCloud, X } from 'lucide-react'
+import { Loader2, Plus, UploadCloud, X, FileText, Image as ImageIcon } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 
 import { Button } from '@/components/ui/Button'
@@ -38,6 +38,14 @@ function getErrorMessage(error: unknown): string {
   }
 
   return String(error)
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(1)} KB`
+  }
+
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`
 }
 
 export default function AddBookDialog({ open, userId, onClose }: Props) {
@@ -79,6 +87,62 @@ export default function AddBookDialog({ open, userId, onClose }: Props) {
   }, [open, t, toast])
 
   if (!open) return null
+
+  function openFilePicker(type: 'book' | 'cover') {
+    if (saving) return
+
+    const input = type === 'book' ? fileRef.current : coverRef.current
+
+    if (!input) {
+      toast.error('تعذر فتح نافذة اختيار الملف. يرجى تحديث الصفحة.')
+      return
+    }
+
+    // إعادة ضبط القيمة للسماح باختيار الملف نفسه مرة أخرى
+    input.value = ''
+    input.click()
+  }
+
+  function handleBookFileChange(
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) {
+    const selectedFile = event.currentTarget.files?.[0] ?? null
+
+    if (!selectedFile) return
+
+    const extension = selectedFile.name.split('.').pop()?.toLowerCase()
+    const validExtension = extension === 'pdf' || extension === 'epub'
+
+    const validType =
+      selectedFile.type === 'application/pdf' ||
+      selectedFile.type === 'application/epub+zip' ||
+      selectedFile.type === 'application/zip' ||
+      selectedFile.type === ''
+
+    if (!validExtension || !validType) {
+      toast.error('يرجى اختيار كتاب بصيغة PDF أو EPUB.')
+      event.currentTarget.value = ''
+      return
+    }
+
+    setFile(selectedFile)
+  }
+
+  function handleCoverFileChange(
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) {
+    const selectedFile = event.currentTarget.files?.[0] ?? null
+
+    if (!selectedFile) return
+
+    if (!['image/jpeg', 'image/jpg'].includes(selectedFile.type)) {
+      toast.error('يرجى اختيار صورة غلاف بصيغة JPG أو JPEG.')
+      event.currentTarget.value = ''
+      return
+    }
+
+    setCover(selectedFile)
+  }
 
   function resetForm() {
     setTitle('')
@@ -181,11 +245,13 @@ export default function AddBookDialog({ open, userId, onClose }: Props) {
         aria-labelledby="add-book-title"
         className="my-auto w-full max-w-2xl rounded-2xl border border-line bg-surface p-5 shadow-2xl sm:p-7"
       >
+        {/* Header */}
         <div className="mb-6 flex items-center justify-between gap-3">
           <div>
             <h2 id="add-book-title" className="text-xl font-bold">
               {t('upload.title')}
             </h2>
+
             <p className="mt-1 text-sm text-muted">
               {t('upload.subtitle')}
             </p>
@@ -203,6 +269,8 @@ export default function AddBookDialog({ open, userId, onClose }: Props) {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+
+          {/* Book title */}
           <Field
             label={t('upload.bookTitle')}
             value={title}
@@ -212,6 +280,7 @@ export default function AddBookDialog({ open, userId, onClose }: Props) {
             placeholder={t('upload.bookTitlePlaceholder')}
           />
 
+          {/* Author */}
           <Field
             label={t('upload.author')}
             value={author}
@@ -220,6 +289,7 @@ export default function AddBookDialog({ open, userId, onClose }: Props) {
             placeholder={t('upload.authorPlaceholder')}
           />
 
+          {/* Description */}
           <div className="space-y-1.5">
             <label className="block text-sm font-medium">
               {t('upload.description')}
@@ -229,11 +299,13 @@ export default function AddBookDialog({ open, userId, onClose }: Props) {
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
+              maxLength={5000}
               className="w-full rounded-xl border border-line bg-surface p-3 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
               placeholder={t('upload.descriptionPlaceholder')}
             />
           </div>
 
+          {/* Language and publication date */}
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <label className="block text-sm font-medium">
@@ -247,7 +319,7 @@ export default function AddBookDialog({ open, userId, onClose }: Props) {
               >
                 <option value="ar">{t('common.arabic')}</option>
                 <option value="fr">{t('common.french')}</option>
-                <option value="en">English</option>
+                <option value="en">{t('common.english') || 'English'}</option>
                 <option value="other">{t('upload.other')}</option>
               </select>
             </div>
@@ -260,6 +332,7 @@ export default function AddBookDialog({ open, userId, onClose }: Props) {
             />
           </div>
 
+          {/* Categories */}
           <div className="space-y-2">
             <label className="block text-sm font-medium">
               {t('upload.category')}
@@ -273,7 +346,9 @@ export default function AddBookDialog({ open, userId, onClose }: Props) {
                   disabled={loadingCategories}
                   className="h-11 min-w-0 flex-1 rounded-xl border border-line bg-surface px-3 text-sm"
                 >
-                  <option value="">{t('upload.noCategory')}</option>
+                  <option value="">
+                    {t('upload.noCategory')}
+                  </option>
 
                   {categories.map((category) => (
                     <option key={category.id} value={category.id}>
@@ -316,7 +391,10 @@ export default function AddBookDialog({ open, userId, onClose }: Props) {
             )}
           </div>
 
+          {/* File inputs - hidden but accessible through buttons */}
           <div className="grid gap-4 sm:grid-cols-2">
+
+            {/* Book file */}
             <div className="space-y-2">
               <label className="block text-sm font-medium">
                 {t('upload.bookFile')}
@@ -326,21 +404,42 @@ export default function AddBookDialog({ open, userId, onClose }: Props) {
                 ref={fileRef}
                 type="file"
                 accept=".pdf,.epub,application/pdf,application/epub+zip"
-                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-                className="block w-full text-xs text-muted file:me-3 file:rounded-lg file:border-0 file:bg-primary/10 file:px-3 file:py-2 file:text-primary"
+                onChange={handleBookFileChange}
+                className="sr-only"
+                tabIndex={-1}
+                aria-hidden="true"
               />
+
+              <button
+                type="button"
+                onClick={() => openFilePicker('book')}
+                disabled={saving}
+                className="flex min-h-14 w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-primary/40 bg-primary/5 p-3 text-sm font-semibold text-primary transition hover:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <UploadCloud size={20} />
+                {file ? 'تغيير ملف الكتاب' : 'اختيار ملف الكتاب'}
+              </button>
 
               <p className="text-xs text-muted">
                 {t('upload.fileHint')}
               </p>
 
               {file && (
-                <p className="break-all text-xs text-primary">
-                  {file.name}
-                </p>
+                <div className="flex items-start gap-2 break-all rounded-lg bg-primary/5 p-3 text-xs">
+                  <FileText size={18} className="shrink-0 text-primary" />
+                  <div className="min-w-0">
+                    <p className="font-medium text-primary">
+                      {file.name}
+                    </p>
+                    <p className="mt-1 text-muted">
+                      {formatFileSize(file.size)}
+                    </p>
+                  </div>
+                </div>
               )}
             </div>
 
+            {/* Cover file */}
             <div className="space-y-2">
               <label className="block text-sm font-medium">
                 {t('upload.cover')}
@@ -350,22 +449,43 @@ export default function AddBookDialog({ open, userId, onClose }: Props) {
                 ref={coverRef}
                 type="file"
                 accept=".jpg,.jpeg,image/jpeg"
-                onChange={(e) => setCover(e.target.files?.[0] ?? null)}
-                className="block w-full text-xs text-muted file:me-3 file:rounded-lg file:border-0 file:bg-primary/10 file:px-3 file:py-2 file:text-primary"
+                onChange={handleCoverFileChange}
+                className="sr-only"
+                tabIndex={-1}
+                aria-hidden="true"
               />
+
+              <button
+                type="button"
+                onClick={() => openFilePicker('cover')}
+                disabled={saving}
+                className="flex min-h-14 w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-line bg-surface p-3 text-sm font-medium transition hover:bg-line disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <ImageIcon size={20} />
+                {cover ? 'تغيير صورة الغلاف' : 'اختيار صورة الغلاف'}
+              </button>
 
               <p className="text-xs text-muted">
                 {t('upload.coverHint')}
               </p>
 
               {cover && (
-                <p className="break-all text-xs text-primary">
-                  {cover.name}
-                </p>
+                <div className="flex items-start gap-2 break-all rounded-lg bg-primary/5 p-3 text-xs">
+                  <ImageIcon size={18} className="shrink-0 text-primary" />
+                  <div className="min-w-0">
+                    <p className="font-medium text-primary">
+                      {cover.name}
+                    </p>
+                    <p className="mt-1 text-muted">
+                      {formatFileSize(cover.size)}
+                    </p>
+                  </div>
+                </div>
               )}
             </div>
           </div>
 
+          {/* Footer buttons */}
           <div className="flex flex-wrap justify-end gap-3 border-t border-line pt-5">
             <Button
               type="button"
@@ -376,7 +496,11 @@ export default function AddBookDialog({ open, userId, onClose }: Props) {
               {t('common.cancel')}
             </Button>
 
-            <Button type="submit" variant="gold" disabled={saving}>
+            <Button
+              type="submit"
+              variant="gold"
+              disabled={saving}
+            >
               {saving ? (
                 <>
                   <Loader2 size={18} className="animate-spin" />
