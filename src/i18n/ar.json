@@ -1,5 +1,9 @@
+
 {
-  "app": { "name": "المكتبة الذكية", "tagline": "مكتبتك الشخصية الخاصة في السحابة" },
+  "app": {
+    "name": "المكتبة الذكية",
+    "tagline": "مكتبتك الشخصية الخاصة في السحابة"
+  },
   "nav": {
     "dashboard": "الرئيسية",
     "library": "مكتبتي",
@@ -160,6 +164,35 @@
     "deleteAccountDesc": "سيتم حذف حسابك وجميع كتبك وملاحظاتك وعلاماتك نهائيًا. لا يمكن التراجع عن هذا الإجراء.",
     "deleteAccountConfirm": "اكتب بريدك الإلكتروني للتأكيد",
     "deleteAccountFailed": "تعذّر حذف الحساب"
+  },
+  "upload": {
+    "title": "إضافة كتاب جديد",
+    "subtitle": "أضف كتابًا إلى مكتبتك الشخصية",
+    "bookTitle": "عنوان الكتاب",
+    "author": "اسم المؤلف",
+    "description": "وصف الكتاب",
+    "language": "لغة الكتاب",
+    "other": "لغة أخرى",
+    "publicationDate": "تاريخ النشر",
+    "category": "تصنيف الكتاب",
+    "noCategory": "بدون تصنيف",
+    "newCategory": "إنشاء تصنيف جديد",
+    "bookFile": "ملف الكتاب",
+    "fileHint": "اختر ملف PDF أو EPUB",
+    "cover": "غلاف الكتاب",
+    "coverHint": "اختر صورة غلاف بصيغة JPG",
+    "selectFile": "اختيار ملف الكتاب",
+    "selectCover": "اختيار صورة الغلاف",
+    "selectedFile": "الملف المحدد",
+    "selectedCover": "الغلاف المحدد",
+    "uploading": "جارٍ رفع الكتاب...",
+    "submit": "رفع الكتاب",
+    "success": "تم رفع الكتاب بنجاح",
+    "failed": "تعذّر رفع الكتاب",
+    "invalidFile": "صيغة الملف غير مدعومة. اختر PDF أو EPUB.",
+    "invalidCover": "يرجى اختيار صورة JPG صالحة",
+    "requiredTitle": "يرجى إدخال عنوان الكتاب",
+    "requiredFile": "يرجى اختيار ملف الكتاب"
   },
   "errors": {
     "required": "هذا الحقل مطلوب",
