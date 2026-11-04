@@ -1,5 +1,9 @@
+
 {
-  "app": { "name": "Smart Library", "tagline": "Votre bibliothèque personnelle privée dans le cloud" },
+  "app": {
+    "name": "Smart Library",
+    "tagline": "Votre bibliothèque personnelle privée dans le cloud"
+  },
   "nav": {
     "dashboard": "Accueil",
     "library": "Ma bibliothèque",
@@ -160,6 +164,35 @@
     "deleteAccountDesc": "Votre compte, tous vos livres, notes et signets seront supprimés définitivement. Cette action est irréversible.",
     "deleteAccountConfirm": "Saisissez votre adresse e-mail pour confirmer",
     "deleteAccountFailed": "Impossible de supprimer le compte"
+  },
+  "upload": {
+    "title": "Ajouter un nouveau livre",
+    "subtitle": "Ajoutez un livre à votre bibliothèque personnelle",
+    "bookTitle": "Titre du livre",
+    "author": "Nom de l'auteur",
+    "description": "Description du livre",
+    "language": "Langue du livre",
+    "other": "Autre langue",
+    "publicationDate": "Date de publication",
+    "category": "Catégorie du livre",
+    "noCategory": "Sans catégorie",
+    "newCategory": "Créer une nouvelle catégorie",
+    "bookFile": "Fichier du livre",
+    "fileHint": "Sélectionnez un fichier PDF ou EPUB",
+    "cover": "Couverture du livre",
+    "coverHint": "Sélectionnez une image de couverture au format JPG",
+    "selectFile": "Choisir le fichier du livre",
+    "selectCover": "Choisir l'image de couverture",
+    "selectedFile": "Fichier sélectionné",
+    "selectedCover": "Couverture sélectionnée",
+    "uploading": "Envoi du livre en cours...",
+    "submit": "Envoyer le livre",
+    "success": "Livre ajouté avec succès",
+    "failed": "Impossible d'ajouter le livre",
+    "invalidFile": "Format de fichier non pris en charge. Choisissez PDF ou EPUB.",
+    "invalidCover": "Veuillez choisir une image JPG valide",
+    "requiredTitle": "Veuillez saisir le titre du livre",
+    "requiredFile": "Veuillez sélectionner le fichier du livre"
   },
   "errors": {
     "required": "Ce champ est obligatoire",
